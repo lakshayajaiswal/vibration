@@ -1,0 +1,166 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and cumulative gameplay statistics.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique identifier matching the Firebase Auth UID.",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name of the player.",
+          "maxLength": 100
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Profile picture URL.",
+          "maxLength": 500
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address.",
+          "maxLength": 200
+        },
+        "totalEscapes": {
+          "type": "number",
+          "description": "Total number of successful maze escapes."
+        },
+        "blindfoldEscapes": {
+          "type": "number",
+          "description": "Number of escapes achieved in 100% blindfold mode."
+        },
+        "bestTimeSeconds": {
+          "type": "number",
+          "description": "Fastest escape time in seconds."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the profile was initialized."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the profile was last updated."
+        }
+      },
+      "required": ["uid", "displayName", "createdAt"]
+    },
+    "PersonalRun": {
+      "title": "PersonalRun",
+      "description": "Individual escape attempt record in user personal history.",
+      "type": "object",
+      "properties": {
+        "levelId": {
+          "type": "string",
+          "description": "Chamber level ID.",
+          "maxLength": 64
+        },
+        "levelName": {
+          "type": "string",
+          "description": "Chamber level title.",
+          "maxLength": 100
+        },
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of the player.",
+          "maxLength": 128
+        },
+        "timeSeconds": {
+          "type": "number",
+          "description": "Time elapsed in seconds."
+        },
+        "collisionsCount": {
+          "type": "number",
+          "description": "Number of wall collisions."
+        },
+        "sonarPingsCount": {
+          "type": "number",
+          "description": "Number of sonar pings."
+        },
+        "blindfoldMode": {
+          "type": "boolean",
+          "description": "Whether blindfold mode was active throughout."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when run completed."
+        }
+      },
+      "required": ["levelId", "levelName", "userId", "timeSeconds", "blindfoldMode", "completedAt"]
+    },
+    "LeaderboardRecord": {
+      "title": "LeaderboardRecord",
+      "description": "Best score record submitted to public chamber leaderboard.",
+      "type": "object",
+      "properties": {
+        "levelId": {
+          "type": "string",
+          "description": "Level ID this record belongs to.",
+          "maxLength": 64
+        },
+        "levelName": {
+          "type": "string",
+          "description": "Chamber level title.",
+          "maxLength": 100
+        },
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of the record holder.",
+          "maxLength": 128
+        },
+        "userName": {
+          "type": "string",
+          "description": "Display name of player.",
+          "maxLength": 100
+        },
+        "userPhoto": {
+          "type": "string",
+          "description": "Avatar URL of player.",
+          "maxLength": 500
+        },
+        "timeSeconds": {
+          "type": "number",
+          "description": "Fastest completion time in seconds."
+        },
+        "collisionsCount": {
+          "type": "number",
+          "description": "Wall collisions during this best run."
+        },
+        "sonarPingsCount": {
+          "type": "number",
+          "description": "Sonar pings during this best run."
+        },
+        "blindfoldMode": {
+          "type": "boolean",
+          "description": "Whether run was blindfolded."
+        },
+        "achievedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp record was achieved."
+        }
+      },
+      "required": ["levelId", "levelName", "userId", "userName", "timeSeconds", "blindfoldMode", "achievedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores individual user profile and cumulative escape stats."
+    },
+    "/users/{userId}/runs/{runId}": {
+      "schema": "PersonalRun",
+      "description": "Stores individual escape runs in user personal log."
+    },
+    "/leaderboards/{levelId}/records/{userId}": {
+      "schema": "LeaderboardRecord",
+      "description": "Stores player best record for each maze level on the public chamber leaderboard."
+    }
+  }
+}

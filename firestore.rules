@@ -1,0 +1,142 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all unlisted paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Test connection doc used at application startup
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // User Entity Validation
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'email', 'totalEscapes', 'blindfoldEscapes', 'bestTimeSeconds', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 && data.uid == request.auth.uid &&
+        data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+        (!('totalEscapes' in data) || (data.totalEscapes is number && data.totalEscapes >= 0)) &&
+        (!('blindfoldEscapes' in data) || (data.blindfoldEscapes is number && data.blindfoldEscapes >= 0)) &&
+        (!('bestTimeSeconds' in data) || (data.bestTimeSeconds is number && data.bestTimeSeconds >= 0)) &&
+        data.createdAt is string && data.createdAt.size() <= 64 &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Personal Run Validation
+    function isValidPersonalRun(data) {
+      return data.keys().hasAll(['levelId', 'levelName', 'userId', 'timeSeconds', 'blindfoldMode', 'completedAt']) &&
+        data.keys().hasOnly(['levelId', 'levelName', 'userId', 'timeSeconds', 'collisionsCount', 'sonarPingsCount', 'blindfoldMode', 'completedAt']) &&
+        data.levelId is string && data.levelId.size() > 0 && data.levelId.size() <= 64 &&
+        data.levelName is string && data.levelName.size() > 0 && data.levelName.size() <= 100 &&
+        data.userId is string && data.userId == request.auth.uid &&
+        data.timeSeconds is number && data.timeSeconds >= 0 &&
+        (!('collisionsCount' in data) || (data.collisionsCount is number && data.collisionsCount >= 0)) &&
+        (!('sonarPingsCount' in data) || (data.sonarPingsCount is number && data.sonarPingsCount >= 0)) &&
+        data.blindfoldMode is bool &&
+        data.completedAt is string && data.completedAt.size() <= 64;
+    }
+
+    // Leaderboard Record Validation
+    function isValidLeaderboardRecord(data) {
+      return data.keys().hasAll(['levelId', 'levelName', 'userId', 'userName', 'timeSeconds', 'blindfoldMode', 'achievedAt']) &&
+        data.keys().hasOnly(['levelId', 'levelName', 'userId', 'userName', 'userPhoto', 'timeSeconds', 'collisionsCount', 'sonarPingsCount', 'blindfoldMode', 'achievedAt']) &&
+        data.levelId is string && data.levelId.size() > 0 && data.levelId.size() <= 64 &&
+        data.levelName is string && data.levelName.size() > 0 && data.levelName.size() <= 100 &&
+        data.userId is string && data.userId == request.auth.uid &&
+        data.userName is string && data.userName.size() > 0 && data.userName.size() <= 100 &&
+        (!('userPhoto' in data) || (data.userPhoto is string && data.userPhoto.size() <= 500)) &&
+        data.timeSeconds is number && data.timeSeconds >= 0 &&
+        (!('collisionsCount' in data) || (data.collisionsCount is number && data.collisionsCount >= 0)) &&
+        (!('sonarPingsCount' in data) || (data.sonarPingsCount is number && data.sonarPingsCount >= 0)) &&
+        data.blindfoldMode is bool &&
+        data.achievedAt is string && data.achievedAt.size() <= 64;
+    }
+
+    // Users Collection (Private to the user - PII isolated)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false; // Blanket enumeration forbidden
+
+      allow create: if isValidId(userId) &&
+                       isOwner(userId) &&
+                       isValidUser(incoming()) &&
+                       incoming().uid == userId;
+
+      allow update: if isValidId(userId) &&
+                       isOwner(userId) &&
+                       isValidUser(incoming()) &&
+                       incoming().uid == existing().uid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'email', 'totalEscapes', 'blindfoldEscapes', 'bestTimeSeconds', 'updatedAt']);
+
+      allow delete: if false;
+
+      // User Personal Runs Subcollection
+      match /runs/{runId} {
+        allow get: if isValidId(userId) && isValidId(runId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId);
+
+        allow create: if isValidId(userId) &&
+                         isValidId(runId) &&
+                         isOwner(userId) &&
+                         isValidPersonalRun(incoming()) &&
+                         incoming().userId == userId;
+
+        allow update: if false; // Personal run logs are immutable audit records
+        allow delete: if isValidId(userId) && isValidId(runId) && isOwner(userId);
+      }
+    }
+
+    // Public Level Leaderboards (Subcollection scoped per levelId)
+    match /leaderboards/{levelId}/records/{recordUserId} {
+      allow get: if isValidId(levelId) && isValidId(recordUserId);
+      allow list: if isValidId(levelId) && resource.data.levelId == levelId;
+
+      allow create: if isValidId(levelId) &&
+                       isValidId(recordUserId) &&
+                       isSignedIn() &&
+                       request.auth.uid == recordUserId &&
+                       isValidLeaderboardRecord(incoming()) &&
+                       incoming().levelId == levelId &&
+                       incoming().userId == recordUserId;
+
+      allow update: if isValidId(levelId) &&
+                       isValidId(recordUserId) &&
+                       isSignedIn() &&
+                       request.auth.uid == recordUserId &&
+                       isValidLeaderboardRecord(incoming()) &&
+                       incoming().levelId == levelId &&
+                       incoming().userId == recordUserId &&
+                       incoming().userId == existing().userId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['userName', 'userPhoto', 'timeSeconds', 'collisionsCount', 'sonarPingsCount', 'blindfoldMode', 'achievedAt']);
+
+      allow delete: if false;
+    }
+  }
+}

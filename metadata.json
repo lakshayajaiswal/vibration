@@ -1,0 +1,6 @@
+{
+  "name": "ShadowBlind - Tactile Escape",
+  "description": "Sensory accessibility tactile maze game with device motion tilt controls, Web Vibration API haptics, spatial Web Audio 3D sonar, and blindfold vs spectator modes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
